@@ -1,0 +1,107 @@
+---
+- hosts: all
+  tasks:
+      - name: update
+        yum: name=* state=latest
+## user localadmin is used in VMS sollution and is hardcoded. I just add it in case i need him later
+      - name: Create localadmin
+        user: name=localadmin shell=/bin/bash home=/home/user groups=wheel generate_ssh_key=yes ssh_key_bits=2048 password=cisco
+      - name: install openstack newton source
+        command: yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-newton/rdo-release-newton-4.noarch.rpm
+      - name: install chrony packages
+        yum: name=chrony state=latest
+      - name: updating se linux
+        yum: name=openstack-selinux state=latest
+      - name: disable enforcing
+        lineinfile:
+          path: /etc/selinux/config
+          regexp: '^SELINUX='
+          line: 'SELINUX=disabled'
+      - name: updating chrony  
+        command: sed -e '/server/s/^/#/g' -i /etc/chrony.conf
+      - name: updating allows in chrony
+        shell: |
+          cat >> /etc/chrony.conf <<EOF 
+          server {{ ntpserver }} iburst
+          Allow {{ extnet }}
+          Allow {{ vmnet }}
+          Allow {{ mananet }}
+      - name: restarting NTP
+        shell: |    
+          systemctl enable chronyd.service
+          systemctl restart chronyd.service
+      - name: disable firewall and NM
+        shell: |
+          systemctl disable firewalld
+          systemctl stop firewalld
+          systemctl disable NetworkManager
+          systemctl stop NetworkManager
+          systemctl enable network
+          systemctl start network
+      - name: removing mariadb
+        command: yum remove mariadb-libs -y
+      - name: install MariaDB and other tools needed
+        yum: state=present name={{ item }}
+        with_items:
+        - mariadb
+        - mariadb-server 
+        - python2-PyMySQL
+        - expect
+        - vim
+        - openstack-utils 
+        - rabbitmq-server
+        - memcached 
+        - python-memcached
+      - name: configure MariaDB options
+        shell: |
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld bind-address 192.168.21.176
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld default-storage-engine innodb
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld innodb_file_per_table 1
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld max_connections 4096
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld collation-server utf8_general_ci
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld init-connect 'SET NAMES utf8'
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld character-set-server utf8
+          systemctl enable mariadb.service
+          systemctl start mariadb.service
+      - name: creating database
+        shell: |
+          MYSQL_ROOT_PASSWORD={{ password }}
+          SECURE_MYSQL=$(expect -c "
+          set timeout 10
+          spawn mysql_secure_installation
+          expect \"Enter current password for root (enter for none):\"
+          send \"$MYSQL\r\"
+          expect \"Change the root password?\"
+          send \"y\r\"
+          send \"{{ password }}\r\"
+          send \"{{ password }}\r\"
+          expect \"Remove anonymous users?\"
+          send \"y\r\"
+          expect \"Disallow root login remotely?\"
+          send \"y\r\"
+          expect \"Remove test database and access to it?\"
+          send \"y\r\"
+          expect \"Reload privilege tables now?\"
+          send \"y\r\"
+          expect eof
+          ")
+          echo "$SECURE_MYSQL"
+      - name: setting up mariadb client
+        shell: |
+          cat > ~/.my.cnf <<EOF
+          [client]
+          user=root
+          password={{ password }} 
+      - name: configure rabitMQ
+        shell: |
+          systemctl enable rabbitmq-server.service
+          systemctl start rabbitmq-server.service
+          rabbitmqctl add_user openstack {{ password }}
+          rabbitmqctl set_user_tags openstack administrator
+          rabbitmqctl set_permissions -p / openstack ".*" ".*" ".*"
+          rabbitmq-plugins enable rabbitmq_management
+          systemctl restart rabbitmq-server.service
+      - name: configure and start memcached
+        shell: |
+          systemctl enable memcached.service
+          systemctl start memcached.service
