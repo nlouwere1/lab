@@ -3,9 +3,18 @@
 
 password: pass
 ntpserver: 10.0.1.254
+
+# configuration for provider network also this is where VM's communicate with outsite world 
 extnet: 10.0.20.0/24
+exint: ens34
+exnetip1: 10.0.20.10
+
+#Vmnet is how vm's communicate between eachother and services
 vmnet: 10.0.30.0/24
-mananet: 10.0.40.0/24
+
+#mananet is where all services communicate on
+mananet: 192.168.21.0/24
+
 # myip is the management ip of the host
 myip: 192.168.21.176
 myname: aio
