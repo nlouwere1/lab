@@ -6,3 +6,5 @@ ntpserver: 10.0.1.254
 extnet: 10.0.20.0/24
 vmnet: 10.0.30.0/24
 mananet: 10.0.40.0/24
+# myip is the management ip of the host
+myip: 192.168.21.176
