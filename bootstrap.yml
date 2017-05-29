@@ -54,7 +54,7 @@
         - python-memcached
       - name: configure MariaDB options
         shell: |
-          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld bind-address 192.168.21.176
+          openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld bind-address {{ myip }}
           openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld default-storage-engine innodb
           openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld innodb_file_per_table 1
           openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld max_connections 4096
