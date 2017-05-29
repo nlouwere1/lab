@@ -13,16 +13,21 @@
       - name: updating se linux
         yum: name=openstack-selinux state=latest
       - name: disable enforcing
-        command: setenforce 0 
+        lineinfile:
+          path: /etc/selinux/config
+          regexp: '^SELINUX='
+          line: 'SELINUX=disabled'
       - name: updating chrony  
         command: sed -e '/server/s/^/#/g' -i /etc/chrony.conf
       - name: updating allows in chrony
         shell: |
           cat >> /etc/chrony.conf <<EOF 
-          server 10.0.1.254 iburst
-          Allow 10.0.0.0/8
-          Allow 192.168.0.0/16
-          EOF
+          server {{ ntpserver }} iburst
+          Allow {{ extnet }}
+          Allow {{ vmnet }}
+          Allow {{ mananet }}
+      - name: restarting NTP
+        shell: |    
           systemctl enable chronyd.service
           systemctl restart chronyd.service
       - name: disable firewall and NM
@@ -44,6 +49,9 @@
         - expect
         - vim
         - openstack-utils 
+        - rabbitmq-server
+        - memcached 
+        - python-memcached
       - name: configure MariaDB options
         shell: |
           openstack-config --set /etc/my.cnf.d/openstack.cnf mysqld bind-address 192.168.21.176
@@ -57,7 +65,7 @@
           systemctl start mariadb.service
       - name: creating database
         shell: |
-          MYSQL_ROOT_PASSWORD=pass
+          MYSQL_ROOT_PASSWORD={{ password }}
           SECURE_MYSQL=$(expect -c "
           set timeout 10
           spawn mysql_secure_installation
@@ -65,8 +73,8 @@
           send \"$MYSQL\r\"
           expect \"Change the root password?\"
           send \"y\r\"
-          send \"pass\r\"
-          send \"pass\r\"
+          send \"{{ password }}\r\"
+          send \"{{ password }}\r\"
           expect \"Remove anonymous users?\"
           send \"y\r\"
           expect \"Disallow root login remotely?\"
@@ -78,3 +86,22 @@
           expect eof
           ")
           echo "$SECURE_MYSQL"
+      - name: setting up mariadb client
+        shell: |
+          cat > ~/.my.cnf <<EOF
+          [client]
+          user=root
+          password={{ password }} 
+      - name: configure rabitMQ
+        shell: |
+          systemctl enable rabbitmq-server.service
+          systemctl start rabbitmq-server.service
+          rabbitmqctl add_user openstack {{ password }}
+          rabbitmqctl set_user_tags openstack administrator
+          rabbitmqctl set_permissions -p / openstack ".*" ".*" ".*"
+          rabbitmq-plugins enable rabbitmq_management
+          systemctl restart rabbitmq-server.service
+      - name: configure and start memcached
+        shell: |
+          systemctl enable memcached.service
+          systemctl start memcached.service
