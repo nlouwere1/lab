@@ -1,0 +1,21 @@
+---
+- hosts: all
+  tasks:
+    - name: removing temp authentication from keystone
+      shell: |
+        openstack-config --set /etc/keystone/keystone-paste.ini pipeline:public_api pipeline "cors sizelimit http_proxy_to_wsgi osprofiler url_normalize request_id build_auth_context token_auth json_body ec2_extension public_service"
+        openstack-config --set /etc/keystone/keystone-paste.ini pipeline:admin_api pipeline "cors sizelimit http_proxy_to_wsgi osprofiler url_normalize request_id build_auth_context token_auth json_body ec2_extension s3_extension admin_service"
+        openstack-config --set /etc/keystone/keystone-paste.ini pipeline:api_v3 pipeline "cors sizelimit http_proxy_to_wsgi osprofiler url_normalize request_id build_auth_context token_auth json_body ec2_extension_v3 s3_extension service_v3"
+        unset OS_AUTH_URL OS_PASSWORD
+    - name: generate new admin source file
+      shell: |
+        cat >> ~/openrc.sh <<EOF
+        export OS_PROJECT_DOMAIN_ID=default
+        export OS_USER_DOMAIN_ID=default
+        export OS_PROJECT_NAME=admin
+        export OS_TENANT_NAME=admin
+        export OS_USERNAME=admin
+        export OS_PASSWORD={{ password }}
+        export OS_AUTH_URL=http://{{ myname }}:35357/v3
+        export OS_IDENTITY_API_VERSION=3
+        export OS_IMAGE_API_VERSION=2

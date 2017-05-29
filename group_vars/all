@@ -8,3 +8,5 @@ vmnet: 10.0.30.0/24
 mananet: 10.0.40.0/24
 # myip is the management ip of the host
 myip: 192.168.21.176
+myname: aio
+myfqdn: aio.nico
