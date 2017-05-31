@@ -7,7 +7,7 @@
         openstack-config --set /etc/keystone/keystone-paste.ini pipeline:admin_api pipeline "cors sizelimit http_proxy_to_wsgi osprofiler url_normalize request_id build_auth_context token_auth json_body ec2_extension s3_extension admin_service"
         openstack-config --set /etc/keystone/keystone-paste.ini pipeline:api_v3 pipeline "cors sizelimit http_proxy_to_wsgi osprofiler url_normalize request_id build_auth_context token_auth json_body ec2_extension_v3 s3_extension service_v3"
         unset OS_AUTH_URL OS_PASSWORD
-	rm -rf ~/openstack-admin.rc
+        rm -rf ~/openstack-admin.rc
     - name: generate new admin source file
       shell: |
         cat >> ~/openrc.sh <<EOF
