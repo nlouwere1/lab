@@ -26,7 +26,7 @@
     - name: creating Nova environoment
       shell: |
         source ~/openrc.sh
-        openstack user create --domain default nova --password {{ password }} --email nova@onecloud.com
+        openstack user create --domain default nova --password {{ password }} --email nova@nico.com
         openstack role add --project admin --user nova admin
         openstack service create --name nova --description "Openstack Compute service" compute
         openstack endpoint create --region RegionOne compute public http://{{ myname }}:8774/v2/%\(tenant_id\)s 
