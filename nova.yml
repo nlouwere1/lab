@@ -63,6 +63,8 @@
         openstack-config --set /etc/nova/nova.conf DEFAULT firewall_driver nova.virt.firewall.NoopFirewallDriver
         openstack-config --set /etc/nova/nova.conf VNC vncserver_listen $my_ip
         openstack-config --set /etc/nova/nova.conf VNC vncserver_proxyclient_address $my_ip
+        openstack-config --set /etc/nova/nova.conf libvirt virt_type=qemu
+        openstack-config --set /etc/nova/nova.conf libvirt cpu_mode=none
         openstack-config --set /etc/nova/nova.conf glance api_servers http://{{ myname }}:9292
         openstack-config --set /etc/nova/nova.conf oslo_concurrency lock_path /var/lib/nova/tmp
         su -s /bin/sh -c "nova-manage api_db sync" nova

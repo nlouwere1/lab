@@ -1,0 +1,60 @@
+---
+- hosts: all
+  tasks:
+    - name: create DB
+      shell: |
+        MYSQL_ROOT_PASSWORD={{ password }}
+        SECURE_MYSQL=$(expect -c "
+        set timeout 10
+        spawn mysql 
+        expect \">\"
+        send \"CREATE DATABASE cinder;\r\"
+        expect \">\"
+        send \"GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'localhost' IDENTIFIED BY  '{{ password }}';\r\"
+        expect \">\"
+        send \"GRANT ALL PRIVILEGES ON cinder.* TO 'cinder'@'%' IDENTIFIED BY  '{{ password }}';\r\"
+        expect \">\"
+        send \"exit\r\"
+        ")
+        echo "$SECURE_MYSQL"
+    - name: creating cinder environoment
+      shell: |
+        source ~/openrc.sh
+        openstack user create --domain default --password {{ password }} cinder
+        openstack role add --project admin --user cinder admin
+        openstack service create --name cinder --description "OpenStack Block Storage" volume
+        openstack service create --name cinderv2 --description "OpenStack Block Storage" volumev2
+        openstack endpoint create --region RegionOne volume public http://{{ myname }}:8776/v1/%\(tenant_id\)s
+        openstack endpoint create --region RegionOne volume internal http://{{ myname }}:8776/v1/%\(tenant_id\)s
+        openstack endpoint create --region RegionOne volume admin http://{{ myname }}:8776/v1/%\(tenant_id\)s
+        openstack endpoint create --region RegionOne volumev2 public http://{{ myname }}:8776/v2/%\(tenant_id\)s
+        openstack endpoint create --region RegionOne volumev2 internal http://{{ myname }}:8776/v2/%\(tenant_id\)s
+        openstack endpoint create --region RegionOne volumev2 admin http://{{ myname }}:8776/v2/%\(tenant_id\)s
+
+
+    - name: install Cinder and services
+      yum: state=present name={{ item }}
+      with_items:
+      - openstack-cinder
+      - lvm2  
+    - name: configure Cinder services
+      shell: |
+        openstack-config --set /etc/cinder/cinder.conf database connection mysql+pymysql://cinder:{{ password }}@{{ myname }}/cinder
+        openstack-config --set /etc/cinder/cinder.conf DEFAULT transport_url rabbit://openstack:{{ password }}@{{ myname }}
+        openstack-config --set /etc/cinder/cinder.conf DEFAULT auth_strategy keystone
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_uri http://{{ myname }}:5000
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_url http://{{ myname }}:35357
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken memcached_servers {{ myname }}:11211
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken auth_type password
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_domain_name default
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken user_domain_name default
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken project_name admin
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken username cinder
+        openstack-config --set /etc/cinder/cinder.conf keystone_authtoken password {{ password }}
+        openstack-config --set /etc/cinder/cinder.conf DEFAULT my_ip {{ myip }}
+        openstack-config --set /etc/cinder/cinder.conf oslo_concurrency lock_path /var/lib/cinder/tmp
+        su -s /bin/sh -c "cinder-manage db sync" cinder
+        systemctl enable openstack-cinder-api.service openstack-cinder-scheduler.service openstack-cinder-volume.service
+        systemctl start openstack-cinder-api.service openstack-cinder-scheduler.service openstack-cinder-volume.service
+        systemctl enable lvm2-lvmetad.service
+        systemctl start lvm2-lvmetad.service
